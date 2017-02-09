@@ -33,7 +33,8 @@ class MNSClient:
         self.access_key = access_key
         self.version = version
         self.security_token = security_token
-        self.logger = MNSLogger.get_logger() if logger is None else logger
+        #self.logger = MNSLogger.get_logger() if logger is None else logger
+        self.logger = None
         self.http = MNSHttp(self.host, logger=logger, is_https=self.is_https)
         if self.logger:
             self.logger.info("InitClient Host:%s Version:%s" % (host, version))
@@ -178,7 +179,7 @@ class MNSClient:
         #send request
         resp_inter = self.http.send_request(req_inter)
 
-        #handle result, make response 
+        #handle result, make response
         resp.status = resp_inter.status
         resp.header = resp_inter.header
         self.check_status(resp_inter, resp)
@@ -251,11 +252,11 @@ class MNSClient:
         self.build_header(req, req_inter)
 
         #send request
-        resp_inter = self.http.send_request(req_inter) 
+        resp_inter = self.http.send_request(req_inter)
 
         #handle result, make response
-        resp.status = resp_inter.status 
-        resp.header = resp_inter.header 
+        resp.status = resp_inter.status
+        resp.header = resp_inter.header
         self.check_status(resp_inter, resp, BatchSendMessageDecoder)
         if resp.error_data == "":
             resp.message_list = BatchSendMessageDecoder.decode(resp_inter.data)
@@ -323,7 +324,7 @@ class MNSClient:
         DeleteMessageValidator.validate(req)
 
         #make request internal
-        req_inter = RequestInternal(req.method, "/%s/%s/%s?ReceiptHandle=%s" % 
+        req_inter = RequestInternal(req.method, "/%s/%s/%s?ReceiptHandle=%s" %
                                                 (URISEC_QUEUE, req.queue_name, URISEC_MESSAGE, req.receipt_handle))
         self.build_header(req, req_inter)
 
@@ -363,7 +364,7 @@ class MNSClient:
         PeekMessageValidator.validate(req)
 
         #make request internal
-        req_inter = RequestInternal(req.method, "/%s/%s/%s?peekonly=true" % 
+        req_inter = RequestInternal(req.method, "/%s/%s/%s?peekonly=true" %
                                                 (URISEC_QUEUE, req.queue_name, URISEC_MESSAGE))
         self.build_header(req, req_inter)
 
@@ -388,7 +389,7 @@ class MNSClient:
         BatchPeekMessageValidator.validate(req)
 
         #make request internal
-        req_inter = RequestInternal(req.method, "/%s/%s/%s?peekonly=true&numOfMessages=%s" % 
+        req_inter = RequestInternal(req.method, "/%s/%s/%s?peekonly=true&numOfMessages=%s" %
                                                 (URISEC_QUEUE, req.queue_name, URISEC_MESSAGE, req.batch_size))
         self.build_header(req, req_inter)
 
@@ -412,7 +413,7 @@ class MNSClient:
         ChangeMsgVisValidator.validate(req)
 
         #make request internal
-        req_inter = RequestInternal(req.method, "/%s/%s/%s?ReceiptHandle=%s&VisibilityTimeout=%d" % 
+        req_inter = RequestInternal(req.method, "/%s/%s/%s?ReceiptHandle=%s&VisibilityTimeout=%d" %
                                                 (URISEC_QUEUE, req.queue_name, URISEC_MESSAGE, req.receipt_handle, req.visibility_timeout))
         self.build_header(req, req_inter)
 
