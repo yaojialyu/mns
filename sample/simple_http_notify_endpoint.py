@@ -55,7 +55,7 @@ class SimpleHttpNotifyEndpoint(BaseHTTPServer.BaseHTTPRequestHandler):
         for key in ["content-md5", "content-type", "date"]:
             if key in self.headers.keys():
                 sign_header_list.append(self.headers.getheader(key))
-            else:                
+            else:
                 sign_header_list.append("")
         str2sign = "%s\n%s\n%s\n%s" % (self.command, "\n".join(sign_header_list), service_str, self.path)
 
@@ -75,7 +75,7 @@ class SimpleHttpNotifyEndpoint(BaseHTTPServer.BaseHTTPRequestHandler):
         else:
             msg.message = data
             return True
-        
+
     def xml_decode(self, data, msg):
         if data == "":
             logger.error("Data is \"\".")
@@ -94,8 +94,8 @@ class SimpleHttpNotifyEndpoint(BaseHTTPServer.BaseHTTPRequestHandler):
         data_dic = {}
         for node in node_list[0].childNodes:
             if node.nodeName != "#text" and node.childNodes != []:
-                data_dic[node.nodeName] = str(node.childNodes[0].nodeValue.strip())
-    
+                data_dic[node.nodeName] = node.firstChild.toxml().encode('utf-8')
+
         key_list = ["TopicOwner", "TopicName", "Subscriber", "SubscriptionName", "MessageId", "MessageMD5", "Message", "PublishTime"]
         for key in key_list:
             if key not in data_dic.keys():
@@ -108,6 +108,7 @@ class SimpleHttpNotifyEndpoint(BaseHTTPServer.BaseHTTPRequestHandler):
         msg.subscription_name = data_dic["SubscriptionName"]
         msg.message_id = data_dic["MessageId"]
         msg.message_md5 = data_dic["MessageMD5"]
+        msg.message_tag = data_dic["MessageTag"] if data_dic.has_key("MessageTag") else ""
         msg.message = data_dic["Message"]
         msg.publish_time = data_dic["PublishTime"]
         return True
@@ -136,7 +137,7 @@ class SimpleHttpNotifyEndpoint(BaseHTTPServer.BaseHTTPRequestHandler):
                              (self.protocol_version, code, message))
             # print (self.protocol_version, code, message)
         self.send_header('Server', self.version_string())
-        self.send_header('Date', self.date_time_string())    
+        self.send_header('Date', self.date_time_string())
 
     def access_log(self, res_code):
         """
@@ -147,7 +148,7 @@ class SimpleHttpNotifyEndpoint(BaseHTTPServer.BaseHTTPRequestHandler):
         for key in header_key_list:
             if self.headers.has_key(key):
                 item_list.append(self.headers.getheader(key))
-            else:                
+            else:
                 item_list.append("-")
         acc_log = "[%s]" % self.log_date_time_string() + " ".join(["\"%s\"" % item for item in item_list]) + "\n"
         print acc_log,
@@ -164,6 +165,7 @@ class NotifyMessage:
         self.subscription_name = ""
         self.message_id = ""
         self.message_md5 = ""
+        self.message_tag = ""
         self.message = ""
         self.publish_time = -1
 
@@ -174,6 +176,7 @@ class NotifyMessage:
                     "SubscriptionName"  : self.subscription_name,
                     "MessageId"     : self.message_id,
                     "MessageMD5"    : self.message_md5,
+                    "MessageTag"     : self.message_tag,
                     "Message"       : self.message,
                     "PublishTime"   : self.publish_time}
         return "\n".join(["%s: %s"%(k.ljust(30),v) for k,v in msg_info.items()])

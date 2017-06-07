@@ -10,6 +10,12 @@
 class RequestBase:
     def __init__(self):
         self.method = ""
+        self.request_id = None
+
+    def set_req_info(self, req_info):
+        if req_info is not None:
+            if req_info.request_id is not None:
+                self.request_id = req_info.request_id
 
 class ResponseBase():
     def __init__(self):
@@ -18,7 +24,7 @@ class ResponseBase():
         self.error_data = ""
 
     def get_requestid(self):
-        self.header.get("x-mns-request-id")
+        return self.header.get("x-mns-request-id")
 
 class SetAccountAttributesRequest(RequestBase):
     def __init__(self, logging_bucket = None):
@@ -66,7 +72,7 @@ class DeleteQueueRequest(RequestBase):
 class DeleteQueueResponse(ResponseBase):
     def __init__(self):
         ResponseBase.__init__(self)
-        
+
 class ListQueueRequest(RequestBase):
     def __init__(self, prefix = "", ret_number = -1, marker = "", with_meta = False):
         RequestBase.__init__(self)
@@ -75,7 +81,7 @@ class ListQueueRequest(RequestBase):
         self.marker = marker
         self.with_meta = with_meta
         self.method = "GET"
-    
+
 class ListQueueResponse(ResponseBase):
     def __init__(self):
         ResponseBase.__init__(self)
@@ -104,7 +110,7 @@ class GetQueueAttributesRequest(RequestBase):
         RequestBase.__init__(self)
         self.queue_name = queue_name
         self.method = "GET"
-        
+
 class GetQueueAttributesResponse(ResponseBase):
     def __init__(self):
         ResponseBase.__init__(self)
@@ -351,10 +357,13 @@ class GetTopicAttributesResponse(ResponseBase):
         self.logging_enabled = None
 
 class PublishMessageRequest(RequestBase):
-    def __init__(self, topic_name, message_body):
+    def __init__(self, topic_name, message_body, message_tag="", direct_mail=None, direct_sms=None):
         RequestBase.__init__(self)
         self.topic_name = topic_name
         self.message_body = message_body
+        self.message_tag = message_tag
+        self.direct_mail = direct_mail
+        self.direct_sms = direct_sms
         self.method = "POST"
 
 class PublishMessageResponse(ResponseBase):
@@ -364,11 +373,12 @@ class PublishMessageResponse(ResponseBase):
         self.message_body_md5 = ""
 
 class SubscribeRequest(RequestBase):
-    def __init__(self, topic_name, subscription_name, endpoint, notify_strategy = "", notify_content_format = ""):
+    def __init__(self, topic_name, subscription_name, endpoint, notify_strategy = "", notify_content_format = "", filter_tag = ""):
         RequestBase.__init__(self)
         self.topic_name = topic_name
         self.subscription_name = subscription_name
         self.endpoint = endpoint
+        self.filter_tag = filter_tag
         self.notify_strategy = notify_strategy
         self.notify_content_format = notify_content_format
         self.method = "PUT"
@@ -406,11 +416,12 @@ class ListSubscriptionByTopicResponse(ResponseBase):
         self.subscriptionmeta_list = []
 
 class SetSubscriptionAttributesRequest(RequestBase):
-    def __init__(self, topic_name, subscription_name, endpoint = "", notify_strategy = "", notify_content_format = ""):
+    def __init__(self, topic_name, subscription_name, endpoint = "", notify_strategy = "", notify_content_format = "", filter_tag = ""):
         RequestBase.__init__(self)
         self.topic_name = topic_name
         self.subscription_name = subscription_name
         self.endpoint = endpoint
+        self.filter_tag = filter_tag
         self.notify_strategy = notify_strategy
         self.notify_content_format = notify_content_format
         self.method = "PUT"
@@ -433,6 +444,7 @@ class GetSubscriptionAttributesResponse(ResponseBase):
         self.topic_name = ""
         self.subscription_name = ""
         self.endpoint = ""
+        self.filter_tag = ""
         self.notify_strategy = ""
         self.notify_content_format = ""
         self.create_time = -1

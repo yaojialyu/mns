@@ -30,11 +30,14 @@ class Queue:
         """
         self.encoding = encoding
         
-    def create(self, queue_meta):
+    def create(self, queue_meta, req_info=None):
         """ 创建队列
 
             @type queue_meta: QueueMeta object
             @param queue_meta: QueueMeta对象，设置队列的属性
+
+            @type req_info: RequestInfo object
+            @param req_info: 透传到MNS的请求信息
 
             @rtype: string
             @return 新创建队列的URL
@@ -45,22 +48,27 @@ class Queue:
             :: MNSServerException           mns处理异常
         """
         req = CreateQueueRequest(self.queue_name, queue_meta.visibility_timeout, queue_meta.maximum_message_size, queue_meta.message_retention_period, queue_meta.delay_seconds, queue_meta.polling_wait_seconds, queue_meta.logging_enabled)
+        req.set_req_info(req_info)
         resp = CreateQueueResponse()
         self.mns_client.create_queue(req, resp)
         self.debuginfo(resp)
         return resp.queue_url
 
-    def get_attributes(self):
+    def get_attributes(self, req_info=None):
         """ 获取队列属性
 
             @rtype: QueueMeta object
             @return 队列的属性
+
+            @type req_info: RequestInfo object
+            @param req_info: 透传到MNS的请求信息
 
             @note: Exception
             :: MNSClientNetworkException    网络异常
             :: MNSServerException           mns处理异常
         """
         req = GetQueueAttributesRequest(self.queue_name)
+        req.set_req_info(req_info)
         resp = GetQueueAttributesResponse()
         self.mns_client.get_queue_attributes(req, resp)
         queue_meta = QueueMeta()
@@ -68,11 +76,14 @@ class Queue:
         self.debuginfo(resp)
         return queue_meta
 
-    def set_attributes(self, queue_meta):
+    def set_attributes(self, queue_meta, req_info=None):
         """ 设置队列属性
 
             @type queue_meta: QueueMeta object
             @param queue_meta: 新设置的属性
+
+            @type req_info: RequestInfo object
+            @param req_info: 透传到MNS的请求信息
 
             @note: Exception
             :: MNSClientParameterException  参数格式异常
@@ -80,27 +91,35 @@ class Queue:
             :: MNSServerException           mns处理异常
         """
         req = SetQueueAttributesRequest(self.queue_name, queue_meta.visibility_timeout, queue_meta.maximum_message_size, queue_meta.message_retention_period, queue_meta.delay_seconds, queue_meta.polling_wait_seconds, queue_meta.logging_enabled)
+        req.set_req_info(req_info)
         resp = SetQueueAttributesResponse()
         self.mns_client.set_queue_attributes(req, resp)
         self.debuginfo(resp)
     
-    def delete(self):
+    def delete(self, req_info=None):
         """ 删除队列
+
+            @type req_info: RequestInfo object
+            @param req_info: 透传到MNS的请求信息
 
             @note: Exception
             :: MNSClientNetworkException    网络异常
             :: MNSServerException           mns处理异常
         """
         req = DeleteQueueRequest(self.queue_name)
+        req.set_req_info(req_info)
         resp = DeleteQueueResponse()
         self.mns_client.delete_queue(req, resp)
         self.debuginfo(resp)
 
-    def send_message(self, message):
+    def send_message(self, message, req_info=None):
         """ 发送消息
 
             @type message: Message object
             @param message: 发送的Message object
+
+            @type req_info: RequestInfo object
+            @param req_info: 透传到MNS的请求信息
 
             @rtype: Message object
             @return 消息发送成功的返回属性，包含MessageId和MessageBodyMD5
@@ -111,19 +130,23 @@ class Queue:
             :: MNSServerException           mns处理异常
         """
         req = SendMessageRequest(self.queue_name, message.message_body, message.delay_seconds, message.priority, self.encoding)
+        req.set_req_info(req_info)
         resp = SendMessageResponse()
         self.mns_client.send_message(req, resp)
         self.debuginfo(resp)
         return self.__send_resp2msg__(resp)
 
-    def batch_send_message(self, messages):
+    def batch_send_message(self, messages, req_info=None):
         """批量发送消息
            
-           @type messages: list of Message object
-           @param messages: 发送的Message object list
+            @type messages: list of Message object
+            @param messages: 发送的Message object list
 
-           @rtype: list of Message object
-           @return 多条消息发送成功的返回属性，包含MessageId和MessageBodyMD5
+            @type req_info: RequestInfo object
+            @param req_info: 透传到MNS的请求信息
+
+            @rtype: list of Message object
+            @return 多条消息发送成功的返回属性，包含MessageId和MessageBodyMD5
 
             @note: Exception
             :: MNSClientParameterException  参数格式异常
@@ -131,6 +154,7 @@ class Queue:
             :: MNSServerException           mns处理异常
         """
         req = BatchSendMessageRequest(self.queue_name, self.encoding)
+        req.set_req_info(req_info)
         for msg in messages:
             req.add_message(msg.message_body, msg.delay_seconds, msg.priority)
         resp = BatchSendMessageResponse()
@@ -138,8 +162,11 @@ class Queue:
         self.debuginfo(resp)
         return self.__batchsend_resp2msg__(resp)
 
-    def peek_message(self):
+    def peek_message(self, req_info=None):
         """ 查看消息
+
+            @type req_info: RequestInfo object
+            @param req_info: 透传到MNS的请求信息
 
             @rtype: Message object
             @return: Message object中包含消息的基本属性
@@ -150,16 +177,20 @@ class Queue:
             :: MNSServerException           mns处理异常
         """
         req = PeekMessageRequest(self.queue_name)
+        req.set_req_info(req_info)
         resp = PeekMessageResponse()
         self.mns_client.peek_message(req, resp)
         self.debuginfo(resp)
         return self.__peek_resp2msg__(resp)
 
-    def batch_peek_message(self, batch_size):
+    def batch_peek_message(self, batch_size, req_info=None):
         """ 批量查看消息
             
             @type batch_size: int
             @param batch_size: 本次请求最多获取的消息条数
+
+            @type req_info: RequestInfo object
+            @param req_info: 透传到MNS的请求信息
 
             @rtype: list of Message object
             @return 多条消息的属性，包含消息的基本属性
@@ -170,16 +201,20 @@ class Queue:
             :: MNSServerException           mns处理异常
         """
         req = BatchPeekMessageRequest(self.queue_name, batch_size)
+        req.set_req_info(req_info)
         resp = BatchPeekMessageResponse()
         self.mns_client.batch_peek_message(req, resp)
         self.debuginfo(resp)
         return self.__batchpeek_resp2msg__(resp)
 
-    def receive_message(self, wait_seconds = -1):
+    def receive_message(self, wait_seconds = -1, req_info=None):
         """ 消费消息
 
             @type wait_seconds: int
             @param wait_seconds: 本次请求的长轮询时间，单位：秒
+
+            @type req_info: RequestInfo object
+            @param req_info: 透传到MNS的请求信息
 
             @rtype: Message object
             @return Message object中包含基本属性、下次可消费时间和临时句柄
@@ -190,12 +225,13 @@ class Queue:
             :: MNSServerException           mns处理异常
         """
         req = ReceiveMessageRequest(self.queue_name, self.encoding, wait_seconds)
+        req.set_req_info(req_info)
         resp = ReceiveMessageResponse()
         self.mns_client.receive_message(req, resp)
         self.debuginfo(resp)
         return self.__recv_resp2msg__(resp)
    
-    def batch_receive_message(self, batch_size, wait_seconds = -1):
+    def batch_receive_message(self, batch_size, wait_seconds = -1, req_info=None):
         """ 批量消费消息
 
             @type batch_size: int
@@ -203,6 +239,9 @@ class Queue:
 
             @type wait_seconds: int
             @param wait_seconds: 本次请求的长轮询时间，单位：秒
+
+            @type req_info: RequestInfo object
+            @param req_info: 透传到MNS的请求信息
 
             @rtype: list of Message object
             @return 多条消息的属性，包含消息的基本属性、下次可消费时间和临时句柄
@@ -213,16 +252,20 @@ class Queue:
             :: MNSServerException           mns处理异常
         """
         req = BatchReceiveMessageRequest(self.queue_name, batch_size, self.encoding, wait_seconds)
+        req.set_req_info(req_info)
         resp = BatchReceiveMessageResponse()
         self.mns_client.batch_receive_message(req, resp)
         self.debuginfo(resp)
         return self.__batchrecv_resp2msg__(resp)
 
-    def delete_message(self, receipt_handle):
+    def delete_message(self, receipt_handle, req_info=None):
         """ 删除消息
 
             @type receipt_handle: string
             @param receipt_handle: 最近一次操作该消息返回的临时句柄
+
+            @type req_info: RequestInfo object
+            @param req_info: 透传到MNS的请求信息
 
             @note: Exception
             :: MNSClientParameterException  参数格式异常
@@ -230,27 +273,32 @@ class Queue:
             :: MNSServerException           mns处理异常
         """
         req = DeleteMessageRequest(self.queue_name, receipt_handle)
+        req.set_req_info(req_info)
         resp = DeleteMessageResponse()
         self.mns_client.delete_message(req, resp)
         self.debuginfo(resp)
 
-    def batch_delete_message(self, receipt_handle_list):
+    def batch_delete_message(self, receipt_handle_list, req_info=None):
         """批量删除消息
             
-           @type receipt_handle_list: list
-           @param receipt_handle_list: batch_receive_message返回的多条消息的临时句柄
+            @type receipt_handle_list: list
+            @param receipt_handle_list: batch_receive_message返回的多条消息的临时句柄
 
-           @note: Exception
-           :: MNSClientParameterException  参数格式异常
-           :: MNSClientNetworkException    网络异常
-           :: MNSServerException           mns处理异常
+            @type req_info: RequestInfo object
+            @param req_info: 透传到MNS的请求信息
+
+            @note: Exception
+            :: MNSClientParameterException  参数格式异常
+            :: MNSClientNetworkException    网络异常
+            :: MNSServerException           mns处理异常
         """
         req = BatchDeleteMessageRequest(self.queue_name, receipt_handle_list)
+        req.set_req_info(req_info)
         resp = BatchDeleteMessageResponse()
         self.mns_client.batch_delete_message(req, resp)
         self.debuginfo(resp)
 
-    def change_message_visibility(self, reciept_handle, visibility_timeout):
+    def change_message_visibility(self, reciept_handle, visibility_timeout, req_info=None):
         """ 修改消息下次可消费时间
 
             @type reciept_handle: string
@@ -259,6 +307,9 @@ class Queue:
             @type visibility_timeout: int
             @param visibility_timeout: 消息下次可被消费时间为
                                        now+visibility_timeout, 单位：秒
+
+            @type req_info: RequestInfo object
+            @param req_info: 透传到MNS的请求信息
 
             @rtype: Message object
             @return: Message object包含临时句柄和下次可消费时间
@@ -269,6 +320,7 @@ class Queue:
             :: MNSServerException           mns处理异常
         """
         req = ChangeMessageVisibilityRequest(self.queue_name, reciept_handle, visibility_timeout)
+        req.set_req_info(req_info)
         resp = ChangeMessageVisibilityResponse()
         self.mns_client.change_message_visibility(req, resp)
         self.debuginfo(resp)
@@ -367,7 +419,7 @@ class QueueMeta:
     DEFAULT_MESSAGE_RETENTION_PERIOD = 86400
     DEFAULT_DELAY_SECONDS = 0
     DEFAULT_POLLING_WAIT_SECONDS = 0
-    def __init__(self):
+    def __init__(self, vis_timeout = None, max_msg_size = None, msg_ttl = None, delay_sec = None, polling_wait_sec = None, logging_enabled = None):
         """ 队列属性
             @note: 设置属性
             :: visibility_timeout: message被receive后，持续不可消费的时间, 单位：秒
@@ -385,12 +437,12 @@ class QueueMeta:
             :: last_modify_time: 修改queue属性的最近时间，单位：秒
             :: queue_name: 队列名称
         """
-        self.visibility_timeout = QueueMeta.DEFAULT_VISIBILITY_TIMEOUT
-        self.maximum_message_size = QueueMeta.DEFAULT_MAXIMUM_MESSAGE_SIZE
-        self.message_retention_period = QueueMeta.DEFAULT_MESSAGE_RETENTION_PERIOD
-        self.delay_seconds = QueueMeta.DEFAULT_DELAY_SECONDS
-        self.polling_wait_seconds = QueueMeta.DEFAULT_POLLING_WAIT_SECONDS
-        self.logging_enabled = None
+        self.visibility_timeout = QueueMeta.DEFAULT_VISIBILITY_TIMEOUT if vis_timeout is None else vis_timeout
+        self.maximum_message_size = QueueMeta.DEFAULT_MAXIMUM_MESSAGE_SIZE if max_msg_size is None else max_msg_size
+        self.message_retention_period = QueueMeta.DEFAULT_MESSAGE_RETENTION_PERIOD if msg_ttl is None else msg_ttl
+        self.delay_seconds = QueueMeta.DEFAULT_DELAY_SECONDS if delay_sec is None else delay_sec
+        self.polling_wait_seconds = QueueMeta.DEFAULT_POLLING_WAIT_SECONDS if polling_wait_sec is None else polling_wait_sec
+        self.logging_enabled = logging_enabled
 
         self.active_messages = -1
         self.inactive_messages = -1
@@ -433,7 +485,7 @@ class QueueMeta:
         return "\n".join(["%s: %s"%(k.ljust(30),v) for k,v in meta_info.items()])
 
 class Message:
-    def __init__(self, message_body = ""):
+    def __init__(self, message_body = None, delay_seconds = None, priority = None):
         """ 消息属性
 
             @note: send_message 指定属性
@@ -461,9 +513,9 @@ class Message:
             :: receipt_handle
             :: next_visible_time
         """
-        self.message_body = message_body
-        self.delay_seconds = -1
-        self.priority = -1
+        self.message_body = "" if message_body is None else message_body
+        self.delay_seconds = -1 if delay_seconds is None else delay_seconds
+        self.priority = -1 if priority is None else priority
 
         self.message_id = ""
         self.message_body_md5 = ""

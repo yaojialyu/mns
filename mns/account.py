@@ -15,7 +15,7 @@ from subscription import Subscription
 from mns_tool import MNSLogger
 
 class Account:
-    def __init__(self, host, access_id, access_key, security_token = "", debug=False):
+    def __init__(self, host, access_id, access_key, security_token = "", debug=False, logger = None):
         """
             @type host: string
             @param host: 访问的url，例如：http://$accountid.mns.cn-hangzhou.aliyuncs.com
@@ -36,7 +36,7 @@ class Account:
         self.access_key = access_key
         self.security_token = security_token
         self.debug = debug
-        self.logger = MNSLogger.get_logger()
+        self.logger = logger
         self.mns_client = MNSClient(host, access_id, access_key, security_token = security_token, logger=self.logger)
 
     def set_debug(self, debug):
@@ -82,11 +82,14 @@ class Account:
             security_token = self.security_token
         self.mns_client = MNSClient(host, access_id, access_key, security_token=security_token, logger=self.logger)
 
-    def set_attributes(self, account_meta):
+    def set_attributes(self, account_meta, req_info=None):
         """ 设置Account的属性
-            
+
             @type account_meta: AccountMeta object
             @param queue_meta: 新设置的属性
+
+            @type req_info: RequestInfo object
+            @param req_info: 透传到MNS的请求信息
 
             @note: Exception
             :: MNSClientParameterException  参数格式异常
@@ -94,24 +97,31 @@ class Account:
             :: MNSServerException           mns处理异常
         """
         req = SetAccountAttributesRequest(account_meta.logging_bucket)
+        req.set_req_info(req_info)
         resp = SetAccountAttributesResponse()
         self.mns_client.set_account_attributes(req, resp)
+        self.debuginfo(resp)
 
-    def get_attributes(self):
+    def get_attributes(self, req_info=None):
         """ 获取Account的属性
-            
+
             @rtype: AccountMeta object
             @return: 返回该Account的Meta属性
+
+            @type req_info: RequestInfo object
+            @param req_info: 透传到MNS的请求信息
 
             @note: Exception
             :: MNSClientNetworkException    网络异常
             :: MNSServerException           mns处理异常
         """
         req = GetAccountAttributesRequest()
+        req.set_req_info(req_info)
         resp = GetAccountAttributesResponse()
         self.mns_client.get_account_attributes(req, resp)
         account_meta = AccountMeta()
         self.__resp2meta__(account_meta, resp)
+        self.debuginfo(resp)
         return account_meta
 
     def get_queue(self, queue_name):
@@ -158,7 +168,7 @@ class Account:
         """
         return self.mns_client
 
-    def list_queue(self, prefix = "", ret_number = -1, marker = ""):
+    def list_queue(self, prefix = "", ret_number = -1, marker = "", req_info=None):
         """ 列出Account的队列
 
             @type prefix: string
@@ -173,18 +183,22 @@ class Account:
             @rtype: tuple
             @return: QueueURL的列表和下次list queue的起始位置; 如果所有queue都list出来，next_marker为"".
 
+            @type req_info: RequestInfo object
+            @param req_info: 透传到MNS的请求信息
+
             @note: Exception
             :: MNSClientParameterException  参数格式异常
             :: MNSClientNetworkException    网络异常
             :: MNSServerException           mns处理异常
         """
         req = ListQueueRequest(prefix, ret_number, marker)
+        req.set_req_info(req_info)
         resp = ListQueueResponse()
         self.mns_client.list_queue(req, resp)
         self.debuginfo(resp)
         return resp.queueurl_list, resp.next_marker
 
-    def list_topic(self, prefix = "", ret_number = -1, marker = ""):
+    def list_topic(self, prefix = "", ret_number = -1, marker = "", req_info=None):
         """ 列出Account的主题
 
             @type prefix: string
@@ -199,13 +213,17 @@ class Account:
             @rtype: tuple
             @return: TopicURL的列表,下次list topic的起始位置, 如果所有主题都返回时，next_marker为""
 
+            @type req_info: RequestInfo object
+            @param req_info: 透传到MNS的请求信息
+
             @note: Exception
             :: MNSClientParameterException  参数格式异常
             :: MNSClientNetworkException    网络异常
             :: MNSServerException           mns处理异常
         """
-        req = ListTopicRequest(prefix, ret_number, marker)
-        resp = ListQueueResponse()
+        req = ListTopicRequest(prefix, ret_number, marker, True)
+        req.set_req_info(req_info)
+        resp = ListTopicResponse()
         self.mns_client.list_topic(req, resp)
         self.debuginfo(resp)
         return resp.topicurl_list, resp.next_marker

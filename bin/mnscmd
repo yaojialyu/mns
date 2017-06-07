@@ -10,6 +10,7 @@
 
 import os
 import sys
+import traceback
 import ConfigParser
 from optparse import OptionParser
 from mns.account import Account,AccountMeta
@@ -18,10 +19,11 @@ from mns.topic import *
 from mns.subscription import *
 from mns.mns_exception import *
 
+global CONFIGFILE
 CONFIGFILE = "%s/.mnscredentials" % os.path.expanduser('~')
 CONFIGSECTION = 'MNSCredentials'
 
-CMD_LIST = [["config"              , "config --endpoint=http://$accountid.mns.cn-hangzhou.aliyuncs.com --accesskeyid=YOUR_ACCESSKEYID --accesskeysecret=YOUR_ACCESSKEYSECRET [--token=YOUR_SECURITYTOKEN]"],
+CMD_LIST = [["config"              , "config --mnsendpoint=http://$accountid.mns.cn-hangzhou.aliyuncs.com --accesskeyid=YOUR_ACCESSKEYID --accesskeysecret=YOUR_ACCESSKEYSECRET [--token=YOUR_SECURITYTOKEN]"],
             ["setaccountattr"      , "setaccountattr [--loggingbucket=xxx]"],
             ["getaccountattr"      , "getaccountattr"]]
 
@@ -31,8 +33,8 @@ QUEUE_CMD_LIST = [
             ["setqueueattr"        , "setqueueattr --queuename=xxx [--vistimeout=xxx] [--maxmsgsize=xxx] [--retentionperiod=xxx] [--delaysec=xxx] [--waitsec=xxx] [--loggingenabled=True/False]"],
             ["getqueueattr"        , "getqueueattr --queuename=xxx"],
             ["deletequeue"         , "deletequeue --queuename=xxx"],
-            ["sendmessage"         , "sendmessage --queuename=xxx --body=xxx [--delaysec=xxx --priority=xxx]"],
-            ["receivemessage"      , "receivemessage --queuename=xxx [--waitsec=xxx]"],
+            ["sendmessage"         , "sendmessage --queuename=xxx --body=xxx [--delaysec=xxx --priority=xxx --base64=False]"],
+            ["receivemessage"      , "receivemessage --queuename=xxx [--waitsec=xxx --base64=False]"],
             ["peekmessage"         , "peekmessage --queuename=xxx"],
             ["deletemessage"       , "deletemessage --queuename=xxx --handle=xxx"],
             ["changevisibility"    , "changevisibility --queuename=xxx --handle=xxx --vistimeout=xxx"]]
@@ -43,9 +45,9 @@ TOPIC_CMD_LIST = [
             ["settopicattr"        , "settopicattr --topicname=xxx [--maxmsgsize=xxx] [--loggingenabled=True/False]"],
             ["gettopicattr"        , "gettopicattr --topicname=xxx"],
             ["deletetopic"         , "deletetopic --topicname=xxx"],
-            ["publishmessage"      , "publishmessage --topicname=xxx --body=xxx"],
+            ["publishmessage"      , "publishmessage --topicname=xxx --body=xxx [--messagetag=xxx]"],
             ["listsub"             , "listsub --topicname=xxx [--prefix=xxx] [--retnum=xxx] [--marker=xxx]"],
-            ["subscribe"           , "subscribe --topicname=xxx --subname=xxx --endpoint=xxx [--notifystrategy=xxx|BACKOFF_RETRY/EXPONENTIAL_DECAY_RETRY] [--notifycontentformat=xxx|XML/SIMPLIFIED]"],
+            ["subscribe"           , "subscribe --topicname=xxx --subname=xxx --endpoint=xxx [--filtertag=xxx] [--notifystrategy=xxx|BACKOFF_RETRY/EXPONENTIAL_DECAY_RETRY] [--notifycontentformat=xxx|XML/SIMPLIFIED/JSON]"],
             ["setsubattr"          , "setsubattr --topicname=xxx --subname=xxx [--notifystrategy=xxx|BACKOFF_RETRY/EXPONENTIAL_DECAY_RETRY]"],
             ["getsubattr"          , "getsubattr --topicname=xxx --subname=xxx"],
             ["unsubscribe"         , "unsubscribe --topicname=xxx --subname=xxx"]]
@@ -60,13 +62,14 @@ SECURITYTOKEN = "securitytoken"
 
 class MNSCmd:
     def config(self, args, options):
-        MNSCmd.miss_parameters((options.endpoint is None or \
+        # WARNING： Please do not hard code your accessId and accesskey in next line.(more information: https://yq.aliyun.com/articles/55947)
+        MNSCmd.miss_parameters((options.mnsendpoint is None or \
                                 options.accesskeyid is None or \
                                 options.accesskeysecret is None),
                                 args)
         config = ConfigParser.RawConfigParser()
         config.add_section(CONFIGSECTION)
-        config.set(CONFIGSECTION, ENDPOINT, options.endpoint)
+        config.set(CONFIGSECTION, ENDPOINT, options.mnsendpoint)
         config.set(CONFIGSECTION, ACCESSKEYID, options.accesskeyid)
         config.set(CONFIGSECTION, ACCESSKEYSECRET, options.accesskeysecret)
         if options.token is not None:
@@ -78,24 +81,31 @@ class MNSCmd:
         cfgfile.close()
         import stat
         os.chmod(CONFIGFILE, stat.S_IREAD | stat.S_IWRITE)
-    
-    def setup_credentials(self):
+
+    def setup_credentials(self, options):
         config = ConfigParser.ConfigParser()
         try:
             config.read(CONFIGFILE)
-            if not config.has_option(CONFIGSECTION, ENDPOINT) or \
-                not config.has_option(CONFIGSECTION, ACCESSKEYID) or \
-                not config.has_option(CONFIGSECTION, ACCESSKEYSECRET):
-                print "Missing credentials in %s. \nmnscmd config to init credentials." % CONFIGFILE
-            self.endpoint = config.get(CONFIGSECTION, ENDPOINT)
-            self.accesskeyid = config.get(CONFIGSECTION, ACCESSKEYID)
-            self.accesskeysecret = config.get(CONFIGSECTION, ACCESSKEYSECRET)
-            self.token = config.get(CONFIGSECTION, SECURITYTOKEN) if config.has_option(CONFIGSECTION, SECURITYTOKEN) else ""
-            self.account = Account(self.endpoint, self.accesskeyid, self.accesskeysecret, self.token)
+            if (options.mnsendpoint is None and not config.has_option(CONFIGSECTION, ENDPOINT)) or \
+                (options.accesskeyid is None and not config.has_option(CONFIGSECTION, ACCESSKEYID)) or \
+                (options.accesskeysecret is None and not config.has_option(CONFIGSECTION, ACCESSKEYSECRET)):
+                    print "Missing credentials in %s. Use \"mnscmd config\" to init credentials." % CONFIGFILE
+                    sys.exit(-1)
+
+            self.mnsendpoint = options.mnsendpoint if options.mnsendpoint is not None else config.get(CONFIGSECTION, ENDPOINT)
+            self.accesskeyid = options.accesskeyid if options.accesskeyid is not None else config.get(CONFIGSECTION, ACCESSKEYID)
+            self.accesskeysecret = options.accesskeysecret if options.accesskeysecret is not None else config.get(CONFIGSECTION, ACCESSKEYSECRET)
+
+            self.token = options.token
+            if self.token is None:
+                self.token = config.get(CONFIGSECTION, SECURITYTOKEN) if config.has_option(CONFIGSECTION, SECURITYTOKEN) else ""
+            self.account = Account(self.mnsendpoint, self.accesskeyid, self.accesskeysecret, self.token)
             self.account.set_debug(True)
         except Exception:
-            print "Can't get credentials.\nmnscmd config to init credentials."
-        
+            print "Can't get credentials. Use \"mnscmd config\" to init credentials."
+            print traceback.print_exc()
+            sys.exit(-1)
+
     def setaccountattr(self, args, options):
         account_meta = MNSCmd.init_accountmeta(options)
         try:
@@ -125,7 +135,7 @@ class MNSCmd:
                 print "\n".join(["QueueURL:%s" % item for item in queueurl_list])
                 print "\nListQueueNumber:%s" % len(queueurl_list)
             if nextmarker != "":
-                print "NextMarker:%s" % nextmarker 
+                print "NextMarker:%s" % nextmarker
         except MNSExceptionBase, e:
             MNSCmd.cmd_exception(args[0], e)
 
@@ -174,6 +184,8 @@ class MNSCmd:
     def sendmessage(self, args, options):
         MNSCmd.miss_parameters((options.queuename is None or options.body is None), args)
         queue = self.account.get_queue(options.queuename)
+        if options.base64 and options.base64.lower() == "false":
+            queue.set_encoding(False)
 
         message = Message(options.body)
         if options.delaysec is not None:
@@ -192,12 +204,14 @@ class MNSCmd:
     def receivemessage(self, args, options):
         MNSCmd.miss_parameters(options.queuename is None, args)
         queue = self.account.get_queue(options.queuename)
+        if options.base64 and options.base64.lower() == "false":
+            queue.set_encoding(False)
         wait_seconds = -1 if options.waitsec is None else options.waitsec
 
         try:
             rmsg = queue.receive_message(wait_seconds)
             MNSCmd.cmd_succeed(args[0])
-            MNSCmd.print_attr({ "MessageBody"       : rmsg.message_body, 
+            MNSCmd.print_attr({ "MessageBody"       : rmsg.message_body,
                                 "MessageID"         : rmsg.message_id,
                                 "MessageBodyMD5"    : rmsg.message_body_md5,
                                 "DequeueCount"      : rmsg.dequeue_count,
@@ -239,7 +253,7 @@ class MNSCmd:
     def changevisibility(self, args, options):
         MNSCmd.miss_parameters((options.queuename is None or \
                                 options.handle is None or \
-                                options.vistimeout is None), 
+                                options.vistimeout is None),
                                args)
         queue = self.account.get_queue(options.queuename)
 
@@ -315,7 +329,7 @@ class MNSCmd:
     def publishmessage(self, args, options):
         MNSCmd.miss_parameters((options.topicname is None or options.body is None), args)
         topic = self.account.get_topic(options.topicname)
-        message = TopicMessage(options.body)
+        message = TopicMessage(options.body, "" if options.messagetag is None else options.messagetag)
 
         try:
             rmsg = topic.publish_message(message)
@@ -356,7 +370,7 @@ class MNSCmd:
             MNSCmd.cmd_succeed(args[0], "SubscriptionURL:%s" % subscription_url)
         except Exception,e:
             MNSCmd.cmd_exception(args[0], e)
- 
+
     def setsubattr(self, args, options):
         MNSCmd.miss_parameters((options.topicname is None or options.subname is None), args)
         subscription = self.account.get_subscription(options.topicname, options.subname)
@@ -367,7 +381,7 @@ class MNSCmd:
             MNSCmd.cmd_succeed(args[0])
         except MNSExceptionBase, e:
             MNSCmd.cmd_exception(args[0], e)
- 
+
     def getsubattr(self, args, options):
         MNSCmd.miss_parameters((options.topicname is None or options.subname is None), args)
         subscription = self.account.get_subscription(options.topicname, options.subname)
@@ -430,6 +444,8 @@ class MNSCmd:
         subscription_meta = SubscriptionMeta()
         if options.endpoint is not None:
             subscription_meta.set_endpoint(options.endpoint)
+        if options.filtertag is not None:
+            subscription_meta.set_filter_tag(options.filtertag)
         if options.notifystrategy is not None:
             subscription_meta.set_notify_strategy(options.notifystrategy)
         if options.notifycontentformat is not None:
@@ -464,7 +480,8 @@ def print_help(key = None):
 
 if __name__ == "__main__":
     parser = OptionParser('''%prog args [options]''')
-    parser.add_option("-e", "--endpoint", dest="endpoint", help="specify mns endpoint, such as: mns.cn-hangzhou.aliyuncs.com")
+    parser.add_option("-c", "--configfile", dest="configfile", help="specify config file, default: ~/.mnscredentials")
+    parser.add_option("-e", "--mnsendpoint", dest="mnsendpoint", help="specify mns endpoint, such as: mns.cn-hangzhou.aliyuncs.com")
     parser.add_option("-a", "--accesskeyid", dest="accesskeyid", help="specify your AccessKeyId")
     parser.add_option("-A", "--accesskeysecret", dest="accesskeysecret", help="specify your AccessKeySecret")
     parser.add_option("-T", "--token", dest="token", help="specify your SecurityToken")
@@ -483,21 +500,28 @@ if __name__ == "__main__":
     parser.add_option("-i", "--info", action="store_true", dest="info", help="get more information of an action")
     parser.add_option("-t", "--topicname", dest="topicname", help="specify topic name")
     parser.add_option("-s", "--subname", dest="subname", help="specify subscription name")
+    parser.add_option("-E", "--endpoint", dest="endpoint", help="specify endpoint of subscription, such as: http://testendpoint or acs:mns:cn-hangzhou:2861740:queues/TestQueue...")
     parser.add_option("-S", "--notifystrategy", dest="notifystrategy", help="specify subscription notify strategy, value:BACKOFF_RETRY/EXPONENTIAL_DECAY_RETRY")
-    parser.add_option("-f", "--notifycontentformat", dest="notifycontentformat", help="specify subscription notify content format, value:BACKOFF_RETRY/EXPONENTIAL_DECAY_RETRY")
+    parser.add_option("-f", "--notifycontentformat", dest="notifycontentformat", help="specify subscription notify content format, value:XML/SIMPLIFIED/JSON")
+    parser.add_option("-F", "--filtertag", dest="filtertag", help="specify subscription filter tag")
+    parser.add_option("-g", "--messagetag", dest="messagetag", help="specify the message tag")
     parser.add_option("-l", "--loggingenabled", dest="loggingenabled", help="specify LoggingEnabled, value: True/False")
     parser.add_option("-L", "--loggingbucket", dest="loggingbucket", help="specify logging bucket")
+    parser.add_option("-B", "--base64", dest="base64", help="base64 decode or encode when send or receive message , value: True/False, default: True")
 
     (options, args) = parser.parse_args()
     if (len(args)) < 1:
         print_help()
+
+    if options.configfile:
+        CONFIGFILE = options.configfile
 
     mns_cmd = MNSCmd()
     if args[0] == "config":
         getattr(mns_cmd, args[0])(args, options)
         sys.exit(0)
     else:
-        mns_cmd.setup_credentials()
+        mns_cmd.setup_credentials(options)
 
     if args[0] not in CMD_RULES.keys():
         print "unsupported command : %s" % args[0]

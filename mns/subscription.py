@@ -22,11 +22,14 @@ class Subscription:
     def set_debug(self, debug):
         self.debug = debug
 
-    def subscribe(self, subscription_meta):
+    def subscribe(self, subscription_meta, req_info=None):
         """ 创建订阅
 
             @type subscription_meta: SubscriptionMeta object
             @param subscription_meta: SubscriptionMeta对象，指定订阅的属性
+
+            @type req_info: RequestInfo object
+            @param req_info: 透传到MNS的请求信息
 
             @rtype: string
             @return 新创建订阅的URL
@@ -40,14 +43,19 @@ class Subscription:
                                self.subscription_name,
                                subscription_meta.endpoint,
                                subscription_meta.notify_strategy,
-                               subscription_meta.notify_content_format)
+                               subscription_meta.notify_content_format,
+                               subscription_meta.filter_tag)
+        req.set_req_info(req_info)
         resp = SubscribeResponse()
         self.mns_client.subscribe(req, resp)
         self.debuginfo(resp)
         return resp.subscription_url
 
-    def get_attributes(self):
+    def get_attributes(self, req_info=None):
         """ 获取订阅属性
+
+            @type req_info: RequestInfo object
+            @param req_info: 透传到MNS的请求信息
 
             @rtype: SubscriptionMeta object
             @return 订阅的属性
@@ -57,6 +65,7 @@ class Subscription:
             :: MNSServerException           mns处理异常
         """
         req = GetSubscriptionAttributesRequest(self.topic_name, self.subscription_name)
+        req.set_req_info(req_info)
         resp = GetSubscriptionAttributesResponse()
         self.mns_client.get_subscription_attributes(req, resp)
         subscription_meta = SubscriptionMeta()
@@ -64,11 +73,14 @@ class Subscription:
         self.debuginfo(resp)
         return subscription_meta
 
-    def set_attributes(self, subscription_meta):
+    def set_attributes(self, subscription_meta, req_info=None):
         """ 设置订阅的属性
 
             @type subscription_meta: SubscriptionMeta object
             @param subscription_meta: 新设置的订阅属性
+
+            @type req_info: RequestInfo object
+            @param req_info: 透传到MNS的请求信息
 
             @note: Exception
             :: MNSClientParameterException  参数格式异常
@@ -79,18 +91,23 @@ class Subscription:
                                                self.subscription_name,
                                                subscription_meta.endpoint,
                                                subscription_meta.notify_strategy)
+        req.set_req_info(req_info)
         resp = SetSubscriptionAttributesResponse()
         self.mns_client.set_subscription_attributes(req, resp)
         self.debuginfo(resp)
 
-    def unsubscribe(self):
+    def unsubscribe(self, req_info=None):
         """ 删除订阅
+
+            @type req_info: RequestInfo object
+            @param req_info: 透传到MNS的请求信息
 
             @note: Exception
             :: MNSClientNetworkException    网络异常
             :: MNSServerException           mns处理异常
         """
         req = UnsubscribeRequest(self.topic_name, self.subscription_name)
+        req.set_req_info(req_info)
         resp = UnsubscribeResponse()
         self.mns_client.unsubscribe(req, resp)
         self.debuginfo(resp)
@@ -106,16 +123,18 @@ class Subscription:
         subscription_meta.topic_name = resp.topic_name
         subscription_meta.subscription_name = resp.subscription_name
         subscription_meta.endpoint = resp.endpoint
+        subscription_meta.filter_tag = resp.filter_tag
         subscription_meta.notify_strategy = resp.notify_strategy
         subscription_meta.notify_content_format = resp.notify_content_format
         subscription_meta.create_time = resp.create_time
         subscription_meta.last_modify_time = resp.last_modify_time
 
 class SubscriptionMeta:
-    def __init__(self, endpoint = "", notify_strategy = "", notify_content_format = ""):
+    def __init__(self, endpoint = "", notify_strategy = "", notify_content_format = "", filter_tag = ""):
         """ Subscription属性
             @note: 设置属性
-            :: endpoint: 接收端地址
+            :: endpoint: 接收端地址, HttpEndpoint, MailEndpoint or QueueEndpoint
+            :: filter_tag: 消息过滤使用的标签
             :: notify_strategy: 向Endpoint推送消息错误时的重试策略
             :: notify_content_format: 向Endpoint推送的消息内容格式
 
@@ -127,6 +146,7 @@ class SubscriptionMeta:
             :: last_modify_time: 修改Subscription属性信息最近时间，从1970-1-1 00:00:00 000到现在的秒值
         """
         self.endpoint = endpoint
+        self.filter_tag = filter_tag
         self.notify_strategy = notify_strategy
         self.notify_content_format = notify_content_format
 
@@ -139,6 +159,9 @@ class SubscriptionMeta:
     def set_endpoint(self, endpoint):
         self.endpoint = endpoint
 
+    def set_filter_tag(self, filter_tag):
+        self.filter_tag = filter_tag
+
     def set_notify_strategy(self, notify_strategy):
         self.notify_strategy = notify_strategy
 
@@ -150,6 +173,7 @@ class SubscriptionMeta:
                      "TopicName": self.topic_name,
                      "SubscriptionName": self.subscription_name,
                      "Endpoint": self.endpoint,
+                     "FilterTag": self.filter_tag,
                      "NotifyStrategy": self.notify_strategy,
                      "NotifyContentFormat": self.notify_content_format,
                      "CreateTime": time.strftime("%Y/%m/%d %H:%M:%S", time.localtime(self.create_time)),
@@ -163,3 +187,4 @@ class SubscriptionNotifyStrategy:
 class SubscriptionNotifyContentFormat:
     XML = "XML"
     SIMPLIFIED = "SIMPLIFIED"
+    JSON = "JSON"

@@ -33,8 +33,7 @@ class MNSClient:
         self.access_key = access_key
         self.version = version
         self.security_token = security_token
-        #self.logger = MNSLogger.get_logger() if logger is None else logger
-        self.logger = None
+        self.logger = logger
         self.http = MNSHttp(self.host, logger=logger, is_https=self.is_https)
         if self.logger:
             self.logger.info("InitClient Host:%s Version:%s" % (host, version))
@@ -74,7 +73,7 @@ class MNSClient:
         #handle result, make response
         resp.status = resp_inter.status
         resp.header = resp_inter.header
-        self.check_status(resp_inter, resp)
+        self.check_status(req_inter, resp_inter, resp)
 
     def get_account_attributes(self, req, resp):
         #make request internal
@@ -87,9 +86,9 @@ class MNSClient:
         #handle result, make response
         resp.status = resp_inter.status
         resp.header = resp_inter.header
-        self.check_status(resp_inter, resp)
+        self.check_status(req_inter, resp_inter, resp)
         if resp.error_data == "":
-            account_attr = GetAccountAttrDecoder.decode(resp_inter.data)
+            account_attr = GetAccountAttrDecoder.decode(resp_inter.data, req_inter.get_req_id())
             resp.logging_bucket = account_attr["LoggingBucket"]
             if self.logger:
                 self.logger.info("GetAccountAttributes RequestId:%s LoggingBucket:%s" % (resp.get_requestid(), resp.logging_bucket))
@@ -109,7 +108,7 @@ class MNSClient:
         #handle result, make response
         resp.status = resp_inter.status
         resp.header = resp_inter.header
-        self.check_status(resp_inter, resp)
+        self.check_status(req_inter, resp_inter, resp)
         if resp.error_data == "":
             resp.queue_url = resp.header["location"]
             if self.logger:
@@ -130,7 +129,7 @@ class MNSClient:
         #handle result, make response
         resp.status = resp_inter.status
         resp.header = resp_inter.header
-        self.check_status(resp_inter, resp)
+        self.check_status(req_inter, resp_inter, resp)
         if self.logger:
             self.logger.info("DeleteQueue RequestId:%s QueueName:%s" % (resp.get_requestid(), req.queue_name))
 
@@ -156,14 +155,13 @@ class MNSClient:
         #handle result, make response
         resp.status = resp_inter.status
         resp.header = resp_inter.header
-        self.check_status(resp_inter, resp)
+        self.check_status(req_inter, resp_inter, resp)
         if resp.error_data == "":
-            resp.queueurl_list, resp.next_marker, resp.queuemeta_list = ListQueueDecoder.decode(resp_inter.data, req.with_meta)
+            resp.queueurl_list, resp.next_marker, resp.queuemeta_list = ListQueueDecoder.decode(resp_inter.data, req.with_meta, req_inter.get_req_id())
             if self.logger:
                 firstQueueURL = "" if resp.queueurl_list == [] else resp.queueurl_list[0]
                 lastQueueURL = "" if resp.queueurl_list == [] else resp.queueurl_list[len(resp.queueurl_list)-1]
-                self.logger.info("ListQueue RequestId:%s Prefix:%s RetNumber:%s Marker:%s \
-                    QueueCount:%s FirstQueueURL:%s LastQueueURL:%s NextMarker:%s" % \
+                self.logger.info("ListQueue RequestId:%s Prefix:%s RetNumber:%s Marker:%s QueueCount:%s FirstQueueURL:%s LastQueueURL:%s NextMarker:%s" % \
                     (resp.get_requestid(), req.prefix, req.ret_number, req.marker, \
                     len(resp.queueurl_list), firstQueueURL, lastQueueURL, resp.next_marker))
 
@@ -182,7 +180,7 @@ class MNSClient:
         #handle result, make response
         resp.status = resp_inter.status
         resp.header = resp_inter.header
-        self.check_status(resp_inter, resp)
+        self.check_status(req_inter, resp_inter, resp)
         if self.logger:
             self.logger.info("SetQueueAttributes RequestId:%s QueueName:%s" % (resp.get_requestid(), req.queue_name))
 
@@ -200,9 +198,9 @@ class MNSClient:
         #handle result, make response
         resp.status = resp_inter.status
         resp.header = resp_inter.header
-        self.check_status(resp_inter, resp)
+        self.check_status(req_inter, resp_inter, resp)
         if resp.error_data == "":
-            queue_attr = GetQueueAttrDecoder.decode(resp_inter.data)
+            queue_attr = GetQueueAttrDecoder.decode(resp_inter.data, req_inter.get_req_id())
             resp.active_messages = string.atoi(queue_attr["ActiveMessages"])
             resp.create_time = string.atoi(queue_attr["CreateTime"])
             resp.delay_messages = string.atoi(queue_attr["DelayMessages"])
@@ -233,12 +231,11 @@ class MNSClient:
         #handle result, make response
         resp.status = resp_inter.status
         resp.header = resp_inter.header
-        self.check_status(resp_inter, resp)
+        self.check_status(req_inter, resp_inter, resp)
         if resp.error_data == "":
-            resp.message_id, resp.message_body_md5 = SendMessageDecoder.decode(resp_inter.data)
+            resp.message_id, resp.message_body_md5 = SendMessageDecoder.decode(resp_inter.data, req_inter.get_req_id())
             if self.logger:
-                self.logger.info("SendMessage RequestId:%s QueueName:%s Priority:%s \
-                    DelaySeconds:%s MessageId:%s MessageBodyMD5:%s" % \
+                self.logger.info("SendMessage RequestId:%s QueueName:%s Priority:%s DelaySeconds:%s MessageId:%s MessageBodyMD5:%s" % \
                     (resp.get_requestid(), req.queue_name, req.priority, \
                     req.delay_seconds, resp.message_id, resp.message_body_md5))
 
@@ -257,9 +254,9 @@ class MNSClient:
         #handle result, make response
         resp.status = resp_inter.status
         resp.header = resp_inter.header
-        self.check_status(resp_inter, resp, BatchSendMessageDecoder)
+        self.check_status(req_inter, resp_inter, resp, BatchSendMessageDecoder)
         if resp.error_data == "":
-            resp.message_list = BatchSendMessageDecoder.decode(resp_inter.data)
+            resp.message_list = BatchSendMessageDecoder.decode(resp_inter.data, req_inter.get_req_id())
             if self.logger:
                 self.logger.info("BatchSendMessage RequestId:%s QueueName:%s MessageCount:%s MessageInfo\n%s" % \
                     (resp.get_requestid(), req.queue_name, len(req.message_list), \
@@ -282,13 +279,12 @@ class MNSClient:
         #handle result, make response
         resp.status = resp_inter.status
         resp.header = resp_inter.header
-        self.check_status(resp_inter, resp)
+        self.check_status(req_inter, resp_inter, resp)
         if resp.error_data == "":
-            data = RecvMessageDecoder.decode(resp_inter.data, req.base64decode)
+            data = RecvMessageDecoder.decode(resp_inter.data, req.base64decode, req_inter.get_req_id())
             self.make_recvresp(data, resp)
             if self.logger:
-                self.logger.info("ReceiveMessage RequestId:%s QueueName:%s WaitSeconds:%s MessageId:%s \
-                    MessageBodyMD5:%s NextVisibilityTime:%s ReceiptHandle:%s EnqueueTime:%s DequeueCount:%s" % \
+                self.logger.info("ReceiveMessage RequestId:%s QueueName:%s WaitSeconds:%s MessageId:%s MessageBodyMD5:%s NextVisibilityTime:%s ReceiptHandle:%s EnqueueTime:%s DequeueCount:%s" % \
                     (resp.get_requestid(), req.queue_name, req.wait_seconds, resp.message_id, \
                     resp.message_body_md5, resp.next_visible_time, resp.receipt_handle, resp.enqueue_time, resp.dequeue_count))
 
@@ -310,9 +306,9 @@ class MNSClient:
         #handle result, make response
         resp.status = resp_inter.status
         resp.header = resp_inter.header
-        self.check_status(resp_inter, resp)
+        self.check_status(req_inter, resp_inter, resp)
         if resp.error_data == "":
-            resp.message_list = BatchRecvMessageDecoder.decode(resp_inter.data, req.base64decode)
+            resp.message_list = BatchRecvMessageDecoder.decode(resp_inter.data, req.base64decode, req_inter.get_req_id())
             if self.logger:
                 self.logger.info("BatchReceiveMessage RequestId:%s QueueName:%s WaitSeconds:%s BatchSize:%s MessageCount:%s \
                     MessagesInfo\n%s" % (resp.get_requestid(), req.queue_name, req.wait_seconds, req.batch_size, len(resp.message_list),\
@@ -334,7 +330,7 @@ class MNSClient:
         #handle result, make response
         resp.status = resp_inter.status
         resp.header = resp_inter.header
-        self.check_status(resp_inter, resp)
+        self.check_status(req_inter, resp_inter, resp)
         if self.logger:
             self.logger.info("DeleteMessage RequestId:%s QueueName:%s ReceiptHandle:%s" % \
                 (resp.get_requestid(), req.queue_name, req.receipt_handle))
@@ -354,7 +350,7 @@ class MNSClient:
         #handle result, make response
         resp.status = resp_inter.status
         resp.header = resp_inter.header
-        self.check_status(resp_inter, resp, BatchDeleteMessageDecoder)
+        self.check_status(req_inter, resp_inter, resp, BatchDeleteMessageDecoder)
         if self.logger:
             self.logger.info("BatchDeleteMessage RequestId:%s QueueName:%s ReceiptHandles\n%s" % \
                 (resp.get_requestid(), req.queue_name, "\n".join(req.receipt_handle_list)))
@@ -374,9 +370,9 @@ class MNSClient:
         #handle result, make response
         resp.status = resp_inter.status
         resp.header = resp_inter.header
-        self.check_status(resp_inter, resp)
+        self.check_status(req_inter, resp_inter, resp)
         if resp.error_data == "":
-            data = PeekMessageDecoder.decode(resp_inter.data, req.base64decode)
+            data = PeekMessageDecoder.decode(resp_inter.data, req.base64decode, req_inter.get_req_id())
             self.make_peekresp(data, resp)
             if self.logger:
                 self.logger.info("PeekMessage RequestId:%s QueueName:%s MessageInfo \
@@ -399,9 +395,9 @@ class MNSClient:
         #handle result, make response
         resp.status = resp_inter.status
         resp.header = resp_inter.header
-        self.check_status(resp_inter, resp)
+        self.check_status(req_inter, resp_inter, resp)
         if resp.error_data == "":
-            resp.message_list = BatchPeekMessageDecoder.decode(resp_inter.data, req.base64decode)
+            resp.message_list = BatchPeekMessageDecoder.decode(resp_inter.data, req.base64decode, req_inter.get_req_id())
             if self.logger:
                 self.logger.info("BatchPeekMessage RequestId:%s QueueName:%s BatchSize:%s MessageCount:%s MessageInfo\n%s" % \
                     (resp.get_requestid(), req.queue_name, req.batch_size, len(resp.message_list), \
@@ -423,12 +419,11 @@ class MNSClient:
         #handle result, make response
         resp.status = resp_inter.status
         resp.header = resp_inter.header
-        self.check_status(resp_inter, resp)
+        self.check_status(req_inter, resp_inter, resp)
         if resp.error_data == "":
-            resp.receipt_handle, resp.next_visible_time = ChangeMsgVisDecoder.decode(resp_inter.data)
+            resp.receipt_handle, resp.next_visible_time = ChangeMsgVisDecoder.decode(resp_inter.data, req_inter.get_req_id())
             if self.logger:
-                self.logger.info("ChangeMessageVisibility RequestId:%s QueueName:%s ReceiptHandle:%s VisibilityTimeout:%s \
-                    NewReceiptHandle:%s NextVisibleTime:%s" % \
+                self.logger.info("ChangeMessageVisibility RequestId:%s QueueName:%s ReceiptHandle:%s VisibilityTimeout:%s NewReceiptHandle:%s NextVisibleTime:%s" % \
                     (resp.get_requestid(), req.queue_name, req.receipt_handle, req.visibility_timeout,\
                      resp.receipt_handle, resp.next_visible_time))
 
@@ -449,7 +444,7 @@ class MNSClient:
         #handle result, make response
         resp.status = resp_inter.status
         resp.header = resp_inter.header
-        self.check_status(resp_inter, resp)
+        self.check_status(req_inter, resp_inter, resp)
         if resp.error_data == "":
             resp.topic_url = resp.header["location"]
             if self.logger:
@@ -470,7 +465,7 @@ class MNSClient:
         #handle result, make response
         resp.status = resp_inter.status
         resp.header = resp_inter.header
-        self.check_status(resp_inter, resp)
+        self.check_status(req_inter, resp_inter, resp)
         if self.logger:
             self.logger.info("DeleteTopic RequestId:%s TopicName:%s" % (resp.get_requestid(), req.topic_name))
 
@@ -496,14 +491,13 @@ class MNSClient:
         #handle result, make response
         resp.status = resp_inter.status
         resp.header = resp_inter.header
-        self.check_status(resp_inter, resp)
+        self.check_status(req_inter, resp_inter, resp)
         if resp.error_data == "":
-            resp.topicurl_list, resp.next_marker, resp.topicmeta_list = ListTopicDecoder.decode(resp_inter.data, req.with_meta)
+            resp.topicurl_list, resp.next_marker, resp.topicmeta_list = ListTopicDecoder.decode(resp_inter.data, req.with_meta, req_inter.get_req_id())
             first_topicurl = "" if len(resp.topicurl_list) == 0 else resp.topicurl_list[0]
             last_topicurl = "" if len(resp.topicurl_list) == 0 else resp.topicurl_list[len(resp.topicurl_list)-1]
             if self.logger:
-                self.logger.info("ListTopic RequestId:%s Prefix:%s RetNumber:%s Marker:%s \
-                    TopicCount:%s FirstTopicURL:%s LastTopicURL:%s NextMarker:%s" % \
+                self.logger.info("ListTopic RequestId:%s Prefix:%s RetNumber:%s Marker:%s TopicCount:%s FirstTopicURL:%s LastTopicURL:%s NextMarker:%s" % \
                     (resp.get_requestid(), req.prefix, req.ret_number, req.marker,\
                      len(resp.topicurl_list), first_topicurl, last_topicurl, resp.next_marker))
 
@@ -522,7 +516,7 @@ class MNSClient:
         #handle result, make response
         resp.status = resp_inter.status
         resp.header = resp_inter.header
-        self.check_status(resp_inter, resp)
+        self.check_status(req_inter, resp_inter, resp)
         if self.logger:
             self.logger.info("SetTopicAttributes RequestId:%s TopicName:%s" % (resp.get_requestid(), req.topic_name))
 
@@ -540,9 +534,9 @@ class MNSClient:
         #handle result, make response
         resp.status = resp_inter.status
         resp.header = resp_inter.header
-        self.check_status(resp_inter, resp)
+        self.check_status(req_inter, resp_inter, resp)
         if resp.error_data == "":
-            topic_attr = GetTopicAttrDecoder.decode(resp_inter.data)
+            topic_attr = GetTopicAttrDecoder.decode(resp_inter.data, req_inter.get_req_id())
             resp.message_count = string.atoi(topic_attr["MessageCount"])
             resp.create_time = string.atoi(topic_attr["CreateTime"])
             resp.last_modify_time = string.atoi(topic_attr["LastModifyTime"])
@@ -568,9 +562,9 @@ class MNSClient:
         #handle result, make response
         resp.status = resp_inter.status
         resp.header = resp_inter.header
-        self.check_status(resp_inter, resp)
+        self.check_status(req_inter, resp_inter, resp)
         if resp.error_data == "":
-            resp.message_id, resp.message_body_md5 = PublishMessageDecoder.decode(resp_inter.data)
+            resp.message_id, resp.message_body_md5 = PublishMessageDecoder.decode(resp_inter.data, req_inter.get_req_id())
             if self.logger:
                 self.logger.info("PublishMessage RequestId:%s TopicName:%s MessageId:%s MessageBodyMD5:%s" % \
                     (resp.get_requestid(), req.topic_name, resp.message_id, resp.message_body_md5))
@@ -590,7 +584,7 @@ class MNSClient:
         #handle result, make response
         resp.status = resp_inter.status
         resp.header = resp_inter.header
-        self.check_status(resp_inter, resp)
+        self.check_status(req_inter, resp_inter, resp)
         if resp.error_data == "":
             resp.subscription_url = resp.header["location"]
             if self.logger:
@@ -611,7 +605,7 @@ class MNSClient:
         #handle result, make response
         resp.status = resp_inter.status
         resp.header = resp_inter.header
-        self.check_status(resp_inter, resp)
+        self.check_status(req_inter, resp_inter, resp)
         if self.logger:
             self.logger.info("Unsubscribe RequestId:%s TopicName:%s SubscriptionName:%s" % (resp.get_requestid(), req.topic_name, req.subscription_name))
 
@@ -635,9 +629,9 @@ class MNSClient:
         #handle result, make response
         resp.status = resp_inter.status
         resp.header = resp_inter.header
-        self.check_status(resp_inter, resp)
+        self.check_status(req_inter, resp_inter, resp)
         if resp.error_data == "":
-            resp.subscriptionurl_list, resp.next_marker = ListSubscriptionByTopicDecoder.decode(resp_inter.data)
+            resp.subscriptionurl_list, resp.next_marker = ListSubscriptionByTopicDecoder.decode(resp_inter.data, req_inter.get_req_id())
             if self.logger:
                 first_suburl = "" if len(resp.subscriptionurl_list) == 0 else resp.subscriptionurl_list[0]
                 last_suburl = "" if len(resp.subscriptionurl_list) == 0 else resp.subscriptionurl_list[len(resp.subscriptionurl_list)-1]
@@ -661,7 +655,7 @@ class MNSClient:
         #handle result, make response
         resp.status = resp_inter.status
         resp.header = resp_inter.header
-        self.check_status(resp_inter, resp)
+        self.check_status(req_inter, resp_inter, resp)
         if self.logger:
             self.logger.info("SetSubscriptionAttributes RequestId:%s TopicName:%s SubscriptionName:%s" % \
                 (resp.get_requestid(), req.topic_name, req.subscription_name))
@@ -680,13 +674,14 @@ class MNSClient:
         #handle result, make response
         resp.status = resp_inter.status
         resp.header = resp_inter.header
-        self.check_status(resp_inter, resp)
+        self.check_status(req_inter, resp_inter, resp)
         if resp.error_data == "":
-            subscription_attr = GetSubscriptionAttrDecoder.decode(resp_inter.data)
+            subscription_attr = GetSubscriptionAttrDecoder.decode(resp_inter.data, req_inter.get_req_id())
             resp.topic_owner = subscription_attr["TopicOwner"]
             resp.topic_name = subscription_attr["TopicName"]
             resp.subscription_name = subscription_attr["SubscriptionName"]
             resp.endpoint = subscription_attr["Endpoint"]
+            resp.filter_tag = subscription_attr["FilterTag"] if subscription_attr.has_key("FilterTag") else ""
             resp.notify_strategy = subscription_attr["NotifyStrategy"]
             resp.notify_content_format = subscription_attr["NotifyContentFormat"]
             resp.create_time = string.atoi(subscription_attr["CreateTime"])
@@ -699,6 +694,8 @@ class MNSClient:
 ###################################################################################################
 #----------------------internal-------------------------------------------------------------------#
     def build_header(self, req, req_inter):
+        if req.request_id is not None:
+            req_inter.header["x-mns-user-request-id"] = req.request_id
         if self.http.is_keep_alive():
             req_inter.header["Connection"] = "Keep-Alive"
         if req_inter.data != "":
@@ -726,7 +723,9 @@ class MNSClient:
                 if k.startswith('x-mns-'):
                     canonicalized_mns_headers += k + ":" + headers[k] + "\n"
         string_to_sign = "%s\n%s\n%s\n%s\n%s%s" % (method, content_md5, content_type, date, canonicalized_mns_headers, canonicalized_resource)
-        h = hmac.new(self.access_key, string_to_sign, hashlib.sha1)
+        #hmac only support str in python2.7
+        tmp_key = self.access_key.encode('utf-8') if isinstance(self.access_key, unicode) else self.access_key
+        h = hmac.new(tmp_key, string_to_sign, hashlib.sha1)
         signature = base64.b64encode(h.digest())
         signature = "MNS " + self.access_id + ":" + signature
         return signature
@@ -737,18 +736,18 @@ class MNSClient:
         else:
             return ""
 
-    def check_status(self, resp_inter, resp, decoder=ErrorDecoder):
+    def check_status(self, req_inter, resp_inter, resp, decoder=ErrorDecoder):
         if resp_inter.status >= 200 and resp_inter.status < 400:
             resp.error_data = ""
         else:
             resp.error_data = resp_inter.data
             if resp_inter.status >= 400 and resp_inter.status <= 600:
-                excType, excMessage, reqId, hostId, subErr = decoder.decodeError(resp.error_data)
+                excType, excMessage, reqId, hostId, subErr = decoder.decodeError(resp.error_data, req_inter.get_req_id())
                 if reqId is None:
                     reqId = resp.header["x-mns-request-id"]
                 raise MNSServerException(excType, excMessage, reqId, hostId, subErr)
             else:
-                raise MNSClientNetworkException("UnkownError", resp_inter.data)
+                raise MNSClientNetworkException("UnkownError", resp_inter.data, req_inter.get_req_id())
 
     def make_recvresp(self, data, resp):
         resp.dequeue_count = string.atoi(data["DequeueCount"])

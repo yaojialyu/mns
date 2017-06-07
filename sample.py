@@ -32,13 +32,14 @@ for sec,op in required_ops:
 ## AccessKeyId      阿里云官网获取
 ## AccessKeySecret  阿里云官网获取
 ## Endpoint         阿里云消息和通知服务官网获取, Example: http://$AccountId.mns.cn-hangzhou.aliyuncs.com
+## WARNING： Please do not hard code your accessId and accesskey in next line.(more information: https://yq.aliyun.com/articles/55947)
 accessKeyId = parser.get("Base", "AccessKeyId")
 accessKeySecret = parser.get("Base", "AccessKeySecret")
 endpoint = parser.get("Base", "Endpoint")
 securityToken = ""
 if parser.has_option("Optional", "SecurityToken") and parser.get("Optional", "SecurityToken") != "$SecurityToken":
     securityToken = parser.get("Optional", "SecurityToken")
-    
+
 
 #初始化my_account
 my_account = Account(endpoint, accessKeyId, accessKeySecret, securityToken)
@@ -58,6 +59,7 @@ queue_meta.set_maximum_message_size(10240)
 queue_meta.set_message_retention_period(3600)
 queue_meta.set_delay_seconds(10)
 queue_meta.set_polling_wait_seconds(20)
+queue_meta.set_logging_enabled(True)
 try:
     queue_url = my_queue.create(queue_meta)
     sys.stdout.write("Create Queue Succeed!\nQueueURL:%s\n\n" % queue_url)
@@ -98,7 +100,7 @@ try:
                       \nMaximumMessageSize: %s\nDelaySeconds: %s \
                       \nPollingWaitSeconds: %s\nActiveMessages: %s \
                       \nInactiveMessages: %s\nDelayMessages: %s \
-                      \nCreateTime: %s\nLastModifyTime: %s\n\n" % 
+                      \nCreateTime: %s\nLastModifyTime: %s\n\n" %
                       (queue_meta.queue_name, queue_meta.visibility_timeout,
                        queue_meta.maximum_message_size, queue_meta.delay_seconds,
                        queue_meta.polling_wait_seconds, queue_meta.active_messages,
@@ -125,7 +127,7 @@ try:
         if(next_marker == ""):
             break
         marker = next_marker
-    sys.stdout.write("List Queue Succeed! Total Queue Count:%s!\n\n" % total_qcount)        
+    sys.stdout.write("List Queue Succeed! Total Queue Count:%s!\n\n" % total_qcount)
 except MNSExceptionBase, e:
     sys.stderr.write("List Queue Fail!\nException:%s\n\n" % e)
     sys.exit(1)
@@ -162,7 +164,7 @@ try:
                       \nMessageId: %s\nMessageBodyMD5: %s \
                       \nMessageBody: %s\nDequeueCount: %s \
                       \nEnqueueTime: %s\nFirstDequeueTime: %s \
-                      \nPriority: %s\n\n" % 
+                      \nPriority: %s\n\n" %
                       (peek_msg.message_id, peek_msg.message_body_md5,
                        peek_msg.message_body, peek_msg.dequeue_count,
                        peek_msg.enqueue_time,  peek_msg.first_dequeue_time,
@@ -184,7 +186,7 @@ try:
                       \nMessageBody: %s\nDequeueCount: %s \
                       \nEnqueueTime: %s\nFirstDequeueTime: %s \
                       \nPriority: %s\nNextVisibleTime: %s \
-                      \nReceiptHandle: %s\n\n" % 
+                      \nReceiptHandle: %s\n\n" %
                       (recv_msg.message_id, recv_msg.message_body_md5,
                        recv_msg.message_body, recv_msg.dequeue_count,
                        recv_msg.enqueue_time, recv_msg.first_dequeue_time,
@@ -202,7 +204,7 @@ except MNSExceptionBase, e:
 ## NextVisibleTime                  消息下次可被消费的时间，单位：毫秒
 try:
     change_msg_vis = my_queue.change_message_visibility(recv_msg.receipt_handle, 35)
-    sys.stdout.write("Change Message Visibility Succeed!\nReceiptHandle:%s\nNextVisibleTime:%s\n\n" % 
+    sys.stdout.write("Change Message Visibility Succeed!\nReceiptHandle:%s\nNextVisibleTime:%s\n\n" %
                       (change_msg_vis.receipt_handle, change_msg_vis.next_visible_time))
 except MNSExceptionBase, e:
     sys.stderr.write("Change Message Visibility Fail!\nException:%s\n\n" % e)
@@ -315,6 +317,7 @@ except MNSExceptionBase, e:
 ## maximum_message_size 消息的最大长度      6144Byte
 topic_meta = TopicMeta()
 topic_meta.set_maximum_message_size(6144)
+topic_meta.set_logging_enabled(True)
 try:
     my_topic.set_attributes(topic_meta)
     sys.stdout.write("Set Topic Attributes Succeed!\n\n")
@@ -352,22 +355,24 @@ try:
         if (next_marker == ""):
             break
         marker = next_marker
-    sys.stdout.write("List Topic Succeed! Total Topic Count:%s\n\n" % total_count)        
+    sys.stdout.write("List Topic Succeed! Total Topic Count:%s\n\n" % total_count)
 except MNSExceptionBase, e:
     sys.stderr.write("List Queue Fail!\nException:%s\n\n" % e)
     sys.exit(1)
-    
+
 #创建订阅
 ## endpoint                 接收端地址
+## filter_tag               消息过滤的标签，不能超过16个字符
 ## notify_strategy          向Endpoint推送消息错误时的重试策略
 ## notify_content_format    向Endpoint推送的消息内容格式
 endpoint = "http://test-endpoint"
-sub_meta = SubscriptionMeta(endpoint, SubscriptionNotifyStrategy.BACKOFF, SubscriptionNotifyContentFormat.XML)
+filter_tag = "important"
+sub_meta = SubscriptionMeta(endpoint, SubscriptionNotifyStrategy.BACKOFF, SubscriptionNotifyContentFormat.XML, filter_tag)
 my_sub = my_topic.get_subscription("MySubscription-%s" % time.strftime("%y%m%d-%H%M%S", time.localtime()))
 try:
     sub_url = my_sub.subscribe(sub_meta)
     sys.stdout.write("Subscribe Topic Succeed!\nSubscriptionURL:%s\n\n" % sub_url)
-except MNSExceptionBase, e:    
+except MNSExceptionBase, e:
     sys.stderr.write("Subscribe Topic Fail!\nException:%s\n\n" % e)
     sys.exit(1)
 
@@ -408,21 +413,24 @@ try:
             sys.stdout.write("SubscriptionURL:%s\n" % sub_url)
         if (next_marker == ""):
             break
-        marker = next_marker            
-    sys.stdout.write("List Subscription Succeed! Subscription Count:%s\n\n" % total_count)        
+        marker = next_marker
+    sys.stdout.write("List Subscription Succeed! Subscription Count:%s\n\n" % total_count)
 except MNSExceptionBase, e:
     sys.stderr.write("List Subscription Fail!\nException:%s\n\n" % e)
     sys.exit(1)
 
 #发送消息
+## msg_body                 发布消息的正文
+## msg_tag                  消息标签（用户消息过滤），不能超过16个字符
 ## 返回如下属性：
 ## MessageId                消息编号
 ## MessageBodyMd5           消息正文的MD5值
-msg_body = "I am test message."    
-message = TopicMessage(msg_body)
+msg_body = "I am test message."
+msg_tag = "important"
+message = TopicMessage(msg_body, msg_tag)
 try:
     re_msg = my_topic.publish_message(message)
-    sys.stdout.write("Publish Message Succeed.\nMessageBody:%s\nMessageId:%s\nMessageBodyMd5:%s\n\n" % (msg_body, re_msg.message_id, re_msg.message_body_md5))
+    sys.stdout.write("Publish Message Succeed.\nMessageBody:%s\nMessageTag:%s\nMessageId:%s\nMessageBodyMd5:%s\n\n" % (msg_body, msg_tag, re_msg.message_id, re_msg.message_body_md5))
 except MNSExceptionBase, e:
     sys.stderr.write("Publish Message Fail!\nException:%s\n\n" % e)
     sys.exit(1)

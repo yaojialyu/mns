@@ -14,20 +14,27 @@ class MNSExceptionBase(Exception):
 
     @type message: string
     @param message: 错误描述
+
+    @type req_id: string
+    @param req_id: 请求的request_id
     """
-    def __init__(self, type, message):
+    def __init__(self, type, message, req_id = None):
         self.type = type
         self.message = message
+        self.req_id = req_id
 
     def get_info(self):
-        return "(\"%s\" \"%s\")\n" % (self.type, self.message)
+        if self.req_id is not None:
+            return "(\"%s\" \"%s\") RequestID:%s\n" % (self.type, self.message, self.req_id)
+        else:
+            return "(\"%s\" \"%s\")\n" % (self.type, self.message)
 
     def __str__(self):
         return "MNSExceptionBase  %s" % (self.get_info())
 
 class MNSClientException(MNSExceptionBase):
-    def __init__(self, type, message):
-        MNSExceptionBase.__init__(self, type, message)
+    def __init__(self, type, message, req_id = None):
+        MNSExceptionBase.__init__(self, type, message, req_id)
 
     def __str__(self):
         return "MNSClientException  %s" % (self.get_info())
@@ -43,21 +50,21 @@ class MNSServerException(MNSExceptionBase):
              : 更多错误类型请移步阿里云消息和通知服务官网进行了解；
     """
     def __init__(self, type, message, request_id, host_id, sub_errors=None):
-        MNSExceptionBase.__init__(self, type, message)
+        MNSExceptionBase.__init__(self, type, message, request_id)
         self.request_id = request_id
         self.host_id = host_id
         self.sub_errors = sub_errors
 
     def __str__(self):
-        return "MNSServerException  %s\nRequestID:%s" % (self.get_info(), self.request_id)
+        return "MNSServerException  %s" % (self.get_info())
         
 class MNSClientNetworkException(MNSClientException):
     """ 网络异常
 
         @note: 检查endpoint是否正确、本机网络是否正常等;
     """
-    def __init__(self, type, message):
-        MNSClientException.__init__(self, type, message)
+    def __init__(self, type, message, req_id=None):
+        MNSClientException.__init__(self, type, message, req_id)
 
     def get_info(self):
         return "(\"%s\", \"%s\")\n" % (self.type, self.message)
@@ -70,8 +77,8 @@ class MNSClientParameterException(MNSClientException):
 
         @note: 请根据提示修改对应参数;
     """
-    def __init__(self, type, message):
-        MNSClientException.__init__(self, type, message)
+    def __init__(self, type, message, req_id=None):
+        MNSClientException.__init__(self, type, message, req_id)
 
     def __str__(self):
         return "MNSClientParameterException  %s" % (self.get_info())
